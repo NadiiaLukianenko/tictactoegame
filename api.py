@@ -8,9 +8,24 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import User, Game, Statistic, Rating, History
-from models import StringMessage, NewGameForm, GameForm, MakeMoveForm,\
-    StatisticForms, GameForms, RatingForms, RatingForm, HistoryForm
+from models import (
+    User,
+    Game,
+    Statistic,
+    Rating,
+    History,
+)
+from models import (
+    StringMessage,
+    NewGameForm,
+    GameForm,
+    MakeMoveForm,
+    StatisticForms,
+    GameForms,
+    RatingForms,
+    RatingForm,
+    HistoryForm,
+)
 from utils import get_by_urlsafe
 
 NEW_GAME_REQUEST = endpoints.ResourceContainer(NewGameForm)
@@ -41,7 +56,7 @@ class tictactoegame(remote.Service):
         user_key = user.put()
         statistic = Statistic(user=user_key, win=0, loss=0, draw=0)
         statistic.put()
-        rating = Rating(user_name=request.user_name, rate=0.0, rank=0)
+        rating = Rating(user_name=request.user_name, rate=0, rank=0)
         rating.put()
         return StringMessage(message='User {} created!'.format(
                 request.user_name))
@@ -119,63 +134,66 @@ class tictactoegame(remote.Service):
                       http_method='PUT')
     def make_move(self, request):
         """Makes a move. Returns a game status with the message"""
-        msg = "Next move!"
+        msg = 'Next move!'
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         history = History.query(History.game == game.key).get()
         if game.game_over:
-            return game.to_form('Game already over!')
+            raise endpoints.ForbiddenException('Illegal action: '
+                                               'Game is already over.')
 
         game_field_list = list(game.game_field)
         dim_size = int(math.sqrt(len(game_field_list)))
         i = request.i
         j = request.j
 
-        msg = "user is %s, and user_o is %s" % (request.user,
+        msg = 'user is %s, and user_o is %s' % (request.user,
                                                 game.user_o.get().name)
         if game_field_list[j + i * dim_size] != ' ':
-            return game.to_form('Incorrect move, the cell is already used.')
+            raise endpoints.ForbiddenException('Illegal action: '
+                                               'the cell is already used.')
 
         if request.user == game.user_o.get().name:
             if game_field_list.count('x') - game_field_list.count('o') == 1:
                 game_field_list[j + i * dim_size] = 'o'
-                game_field_str = "".join(game_field_list)
-                msg = "Game_field is %s" % (game_field_str,)
+                game_field_str = ''.join(game_field_list)
+                msg = 'Game_field is %s' % (game_field_str,)
                 game.game_field = game_field_str
                 game.put()
                 game = get_by_urlsafe(request.urlsafe_game_key, Game)
                 # Check whether game is over and winner
-                if check_winner(game_field_str, "o", i, j):
+                if check_winner(game_field_str, 'o', i, j):
                     game.end_game(game.user_o, game.user_x)
-                    msg = "Game is over! Winner-%s" % (game.user_o.get().name,)
+                    msg = 'Game is over! Winner-%s' % (game.user_o.get().name,)
                     # Task queue to update the leader
                     taskqueue.add(url='/tasks/_cache_current_leader')
-                history.update_history(i, j)
+                history.update_history(msg, game.user_o.get().name, i, j)
             else:
-                return game.to_form("It is not your turn!")
+                return game.to_form('It is not your turn!')
         elif request.user == game.user_x.get().name:
             if game_field_list.count('x') - game_field_list.count('o') == 0:
                 game_field_list[j + i * dim_size] = 'x'
-                game_field_str = "".join(game_field_list)
-                msg = "Game_field is %s" % (game_field_str,)
+                game_field_str = ''.join(game_field_list)
+                msg = 'Game_field is %s' % (game_field_str,)
                 game.game_field = game_field_str
                 game.put()
                 game = get_by_urlsafe(request.urlsafe_game_key, Game)
                 # Check whether game is over and winner
-                if check_winner(game_field_str, "x", i, j):
+                if check_winner(game_field_str, 'x', i, j):
                     game.end_game(game.user_x, game.user_o)
-                    msg = "Game is over! Winner-%s" % (game.user_x.get().name,)
+                    msg = 'Game is over! Winner-%s' % (game.user_x.get().name,)
                     # Task queue to update the leader
                     taskqueue.add(url='/tasks/_cache_current_leader')
-                history.update_history(i, j)
+                history.update_history(msg, game.user_x.get().name, i, j)
             else:
-                return game.to_form("It is not your turn!")
+                raise endpoints.ForbiddenException('Illegal action: '
+                                                   'It is not your turn!')
 
         if game.game_field.count(' ') == 0:
             game.end_game_draw(game.user_x, game.user_o)
-            msg = "Game is over! Draw game!"
+            msg = 'Game is over! Draw game!'
             # Task queue to update the leader
             taskqueue.add(url='/tasks/_cache_current_leader')
-            history.update_history(i, j)
+            history.update_history(msg, '', i, j)
         return game.to_form(msg)
 
     @endpoints.method(request_message=USER_REQUEST,
@@ -184,15 +202,15 @@ class tictactoegame(remote.Service):
                       name='get_user_games',
                       http_method='GET')
     def get_user_games(self, request):
-        """Returns all of an individual User's games"""
+        """Returns all of an individual active User's games"""
         user = User.query(User.name == request.user_name).get()
         if not user:
             raise endpoints.NotFoundException(
                     'A User with that name does not exist!')
-        games = Game.query(ndb.OR(Game.user_o == user.key,
-                                    Game.user_x == user.key))
-        return GameForms(items=[game.to_form('') for game in
-                                     games])
+        games = Game.query(ndb.AND(Game.game_over is False,
+                                   ndb.OR(Game.user_o == user.key,
+                                    Game.user_x == user.key)))
+        return GameForms(items=[game.to_form('') for game in games])
 
     @endpoints.method(response_message=StatisticForms,
                       path='statistic',
@@ -239,7 +257,7 @@ class tictactoegame(remote.Service):
                       http_method='GET')
     def get_rankings(self, request):
         """Get all users rankings"""
-        ratings = Rating.query()
+        ratings = Rating.query().order(Rating.rank)
         return RatingForms(items=[rating.to_form() for rating in ratings])
 
     @staticmethod

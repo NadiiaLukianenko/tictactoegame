@@ -1,22 +1,30 @@
-#TicTacToe Game
+# TicTacToe Game
 
-## Set-Up Instructions:
-1.  Deploy your application.
- 
- 
- 
-##Game Description:
-Tic-tac-toe (also known as Noughts and crosses or Xs and Os) is a game
-for two players, X and O, who take turns marking the spaces in a 3×3 grid. 
-The player who succeeds in placing three of their marks in a horizontal, 
-vertical, or diagonal row wins the game.
- X-player starts the game and make move, then O-player makes move.
- Chosen grid is sent to `make_move` endpoint which will mark proper grid and 
- reply with either 'Game is over. Winner-..' or 'Game field is ...'
- Each player should play in turn. Each game can be retrieved or played by 
- using the path parameter `urlsafe_game_key`.
+## Game Description:
+- Tic-tac-toe (also known as Noughts and crosses or Xs and Os) is a game 
+ for two players, X and O, who take turns marking the spaces in a 3×3 grid. 
+ The player who succeeds in placing three of their marks in a horizontal, 
+ vertical, or diagonal row wins the game:
+- Create new user, using the `create_user` endpoint
+- Use `create_game` to create a game. Copy the `urlsafe_key` property for 
+later use. Each game can be retrieved or played by using the path parameter 
+`urlsafe_game_key`.
+- X-Player starts game with the `make_move` endpoint by setting 
+(i, j) - coordinates of marked space in grid.
+- O-Player continues game with the `make_move` endpoint and selects free 
+space in grid.
+- After each move the proper vertical, horizontal and diagonal lines are 
+evaluated and the `make_move` reply contains message either 'Game field is ...'
+ or 'Game is over. Winner-..' or  or 'Game is over! Draw game!'
+- For each player the quantity of wins, losses and draws are saved. The values
+  can be retrieved by the `get_statistic` endpoint for all users or by the 
+   `get_user_statistic` for specified user. They updated after game is over for 
+  proper players. 
+- The rating is calculated base on formula 2 * wins + draws - losses:
+   2 points for each win, 1 point for each draw and -1 point for each loss.
+   And 
 
-##Files Included:
+## Files Included:
  - api.py: Contains endpoints and game playing logic.
  - app.yaml: App configuration.
  - cron.yaml: Cronjob configuration.
@@ -24,7 +32,7 @@ vertical, or diagonal row wins the game.
  - models.py: Entity and message definitions including helper methods.
  - utils.py: Helper function for retrieving ndb.Models by urlsafe Key string.
 
-##Endpoints Included:
+## Endpoints Included:
  - **create_user**
     - Path: 'user'
     - Method: POST
@@ -117,7 +125,7 @@ vertical, or diagonal row wins the game.
     - Description: Returns the current leader with rate data from 
     a previously cached memcache key.
 
-##Models Included:
+## Models Included:
  - **User**
     - Stores unique user_name and (optional) email address.
     
@@ -135,7 +143,7 @@ vertical, or diagonal row wins the game.
     - Records ratings and ranks for all users. 
     
     
-##Forms Included:
+## Forms Included:
  - **GameForm**
     - Representation of a Game's state (urlsafe_key, game_over, message, 
     user_name_x, user_name_o, date).

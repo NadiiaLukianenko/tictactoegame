@@ -2,6 +2,7 @@
 
 from protorpc import messages
 from google.appengine.ext import ndb
+import json
 
 
 class User(ndb.Model):
@@ -61,18 +62,16 @@ class Game(ndb.Model):
 class History(ndb.Model):
     """ History object - saves all moves for each game  """
     game = ndb.KeyProperty(required=True, kind='Game')
-    move_i = ndb.IntegerProperty(repeated=True)
-    move_j = ndb.IntegerProperty(repeated=True)
+    moves = ndb.JsonProperty(repeated=True)
 
     def to_form(self):
         form = HistoryForm()
-        form.move_i = self.move_i
-        form.move_j = self.move_j
+        form.moves = str(self.moves)
         return form
 
-    def update_history(self, i, j):
-        self.move_i.append(i)
-        self.move_j.append(j)
+    def update_history(self, msg, player, i, j):
+        self.moves.append(
+            {'Game status': msg, 'Player': player, 'Move': '%d %d' % (i,j)})
         self.put()
 
 
@@ -95,7 +94,7 @@ class Statistic(ndb.Model):
 class Rating(ndb.Model):
     """Rating object"""
     user_name = ndb.StringProperty(required=True)
-    rate = ndb.FloatProperty()
+    rate = ndb.IntegerProperty()
     rank = ndb.IntegerProperty()
 
     def to_form(self):
@@ -152,7 +151,7 @@ def update_rating():
     rankings.sort(key=lambda tup: tup[1], reverse=True)
     rankings = list(enumerate(rankings, start=1))
     for ranking in rankings:
-        dictionary[str(ranking[1][0])] = (float(ranking[1][1]),
+        dictionary[str(ranking[1][0])] = (ranking[1][1],
                                           int(ranking[0]))
 
     for name in dictionary.keys():
@@ -168,14 +167,9 @@ def calculate_rate(win, draw, loss):
         win: qty of wins
         draw: qty of draws
         loss: qty of losses
-
     Returns: Rate base on the qty win, draw, loss
     """
-    try:
-        rate = float((2 * win + draw - loss)/(win + draw + loss))
-    except ZeroDivisionError:
-        return 0.0
-    return rate
+    return 2 * win + draw - loss
 
 
 class GameForm(messages.Message):
@@ -222,7 +216,7 @@ class StatisticForms(messages.Message):
 class RatingForm(messages.Message):
     """RatingForm for rating users"""
     user_name = messages.StringField(1, required=True)
-    rate = messages.FloatField(2)
+    rate = messages.IntegerField(2)
     rank = messages.IntegerField(3)
 
 
@@ -233,8 +227,8 @@ class RatingForms(messages.Message):
 
 class HistoryForm(messages.Message):
     """ Return history of game """
-    move_i = messages.IntegerField(1, repeated=True)
-    move_j = messages.IntegerField(2, repeated=True)
+    moves = messages.StringField(1)
+
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
