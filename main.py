@@ -31,27 +31,6 @@ class SendReminderEmail(webapp2.RequestHandler):
                 mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
                                user.email, subject, body)
 
-        ######
-        """
-        games = Game.query(Game.game_over == False)
-        active_users = set()
-        for game in games:
-            active_users.add(game.user_o.get().name)
-            active_users.add(game.user_x.get().name)
-
-        for user_name in active_users:
-            player = User.query(
-                ndb.AND(User.name == user_name, User.email is not None)).get()
-            subject = 'This is a reminder!'
-            body = 'Hello {}, you have incomplete game!'.format(player.name)
-            # This will send test emails, the arguments to send_mail are:
-            # from, to, subject, body
-            mail.send_mail('noreply@{}.appspotmail.com'.format(app_id),
-                           player.email,
-                           subject,
-                           body)
-        """
-
 
 class UpdateCurrentLeader(webapp2.RequestHandler):
     def post(self):
