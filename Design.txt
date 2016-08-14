@@ -1,2 +1,22 @@
-The student has meaningfully reflected on their design decisions and
-recorded their reflections in a text file
+Tic-Tac-Toe game
+
+User model saves all data for user - name and e-mail.
+And additionally, it saves statistical data for each user and calculates
+rate and rank.
+Rate is calculated according to the rule - 2 points for each win, 1 point
+for each draw and -1 point for each loss.
+
+Game model saves game data - who play (user_o, user_x), the date of
+creation, the current state of game represented as one dimensional array.
+
+History model saves a history of game moves in Json format:
+{'Game state': <msg>, 'Player': <player>, 'Move': <i,j>}
+
+UserForm, StatisticForm, RatingForm are used for data representation by
+the user_to_form, statistic_to_form, rate_to_form methods.
+
+After each move the field of game is updated and the current state of game is
+validated with check_winner - the vertical, horizontal lines are validated.
+And two diagonals if the latest cell is on diagonal.
+
+Every monday on 19:00 the letter is sent to everyone who has active game.
