@@ -1,6 +1,5 @@
 """api.py - Create and configure the TicTacToe Game API exposing the resources.
 """
-
 import endpoints
 import math
 from protorpc import remote, messages
@@ -11,20 +10,17 @@ from google.appengine.ext import ndb
 from models import (
     User,
     Game,
-    Statistic,
-    Rating,
     History,
-)
-from models import (
     StringMessage,
     NewGameForm,
     GameForm,
     MakeMoveForm,
-    StatisticForms,
+    UserForms,
     GameForms,
     RatingForms,
     RatingForm,
     HistoryForm,
+    StatisticForms,
 )
 from utils import get_by_urlsafe
 
@@ -48,16 +44,21 @@ class tictactoegame(remote.Service):
                       name='create_user',
                       http_method='POST')
     def create_user(self, request):
-        """Create a User. Requires a unique username"""
+        """Creates a User.
+            Args:
+            request: The USER_REQUEST objects, which includes a users
+                    chosen name and an optional email.
+            Returns:
+                StringMessage: A message that is sent to the client,
+                    saying that the user has been created.
+            Raises:
+                endpoints.ConflictException: If the user already exists.
+        """
         if User.query(User.name == request.user_name).get():
             raise endpoints.ConflictException(
                     'A User with that name already exists!')
         user = User(name=request.user_name, email=request.email)
-        user_key = user.put()
-        statistic = Statistic(user=user_key, win=0, loss=0, draw=0)
-        statistic.put()
-        rating = Rating(user_name=request.user_name, rate=0, rank=0)
-        rating.put()
+        user.put()
         return StringMessage(message='User {} created!'.format(
                 request.user_name))
 
@@ -67,7 +68,17 @@ class tictactoegame(remote.Service):
                       name='new_game',
                       http_method='POST')
     def new_game(self, request):
-        """Creates new game"""
+        """Creates a Game.
+            Args:
+            request: The NEW_GAME_REQUEST objects, which includes two players'
+                names
+            Returns:
+                GameForm with created game
+            Raises:
+                endpoints.NotFoundException: If the user does not exist.
+                endpoints.BadRequestException: If the game is created with one
+                user.
+        """
         user_x = User.query(User.name == request.user_name_x).get()
         user_o = User.query(User.name == request.user_name_o).get()
         if (not user_o) or (not user_x):
@@ -89,7 +100,15 @@ class tictactoegame(remote.Service):
                       name='get_game',
                       http_method='GET')
     def get_game(self, request):
-        """Return the current game status."""
+        """Return a Game.
+            Args:
+            request: The GET_GAME_REQUEST objects, which includes
+                urlsafe_game_key
+            Returns:
+                GameForm with requested game with the current game state.
+            Raises:
+                endpoints.NotFoundException: If the game does not exist.
+        """
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         if game is None:
             raise endpoints.NotFoundException('Game not found!')
@@ -104,7 +123,15 @@ class tictactoegame(remote.Service):
                       name='cancel_game',
                       http_method='DELETE')
     def cancel_game(self, request):
-        """Cancel the game"""
+        """Cancel a Game.
+            Args:
+            request: The GET_GAME_REQUEST objects, which includes
+                urlsafe_game_key
+            Returns:
+                GameForm with cancelled game.
+            Raises:
+                endpoints.NotFoundException: If the game does not exist.
+        """
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         if game is None:
             raise endpoints.NotFoundException('Game not found!')
@@ -120,7 +147,15 @@ class tictactoegame(remote.Service):
                       name='get_game_history',
                       http_method='GET')
     def get_game_history(self, request):
-        """Return game history."""
+        """Return a Game history.
+            Args:
+            request: The GET_GAME_REQUEST objects, which includes
+                urlsafe_game_key
+            Returns:
+                HistoryForm with the history of requested game.
+            Raises:
+                endpoints.NotFoundException: If the game does not exist.
+        """
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         if game is None:
             raise endpoints.NotFoundException('Game not found!')
@@ -133,7 +168,18 @@ class tictactoegame(remote.Service):
                       name='make_move',
                       http_method='PUT')
     def make_move(self, request):
-        """Makes a move. Returns a game status with the message"""
+        """Make move.
+            Args:
+            request: The MAKE_MOVE_REQUEST objects, which includes
+                urlsafe_game_key, i, j - coordinates of cell the in grid,
+                user - player who makes move.
+            Returns:
+                GameForm with the current game state.
+            Raises:
+                endpoints.ForbiddenException: If the game is already over.
+                                              If the cell is already used.
+                                              If it is not turn of the user.
+        """
         msg = 'Next move!'
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
         history = History.query(History.game == game.key).get()
@@ -202,39 +248,55 @@ class tictactoegame(remote.Service):
                       name='get_user_games',
                       http_method='GET')
     def get_user_games(self, request):
-        """Returns all of an individual active User's games"""
+        """Return games of the user.
+            Args:
+            request: The USER_REQUEST objects, which includes
+                urlsafe_name and optional e-mail
+            Returns:
+                GameForms with all active games for the user
+            Raises:
+                endpoints.NotFoundException: If the game does not exist.
+                                             If there are no active games.
+        """
         user = User.query(User.name == request.user_name).get()
         if not user:
             raise endpoints.NotFoundException(
                     'A User with that name does not exist!')
-        games = Game.query(ndb.AND(Game.game_over is False,
-                                   ndb.OR(Game.user_o == user.key,
-                                    Game.user_x == user.key)))
+        games = Game.query(Game.game_over == False)
+        if not games.get():
+            raise endpoints.NotFoundException(
+                'There are no active games for %s!' % (request.user_name,))
+        games = games.filter(ndb.OR(Game.user_o == user.key,
+                                   Game.user_x == user.key))
         return GameForms(items=[game.to_form('') for game in games])
 
-    @endpoints.method(response_message=StatisticForms,
-                      path='statistic',
-                      name='get_statistic',
+    @endpoints.method(response_message=UserForms,
+                      path='users',
+                      name='get_users',
                       http_method='GET')
-    def get_statistic(self, request):
-        """Return all statistics"""
-        return StatisticForms(items=[statistic.to_form() for statistic in
-                                     Statistic.query()])
+    def get_users(self):
+        """Return all Users.
+            Args:
+            Returns:
+                UserForms with users' data.
+        """
+        return UserForms(items=[user.user_to_form() for user in User.query()])
 
     @endpoints.method(request_message=USER_REQUEST,
                       response_message=StatisticForms,
-                      path='statistic/user/{user_name}',
-                      name='get_user_statistic',
+                      path='statistic/users',
+                      name='get_users_statistic',
                       http_method='GET')
-    def get_user_statistic(self, request):
+    def get_users_statistic(self):
         """Returns all of an individual User's statistic"""
-        user = User.query(User.name == request.user_name).get()
-        if not user:
-            raise endpoints.NotFoundException(
-                    'A User with that name does not exist!')
-        statistics = Statistic.query(Statistic.user == user.key)
-        return StatisticForms(items=[statistic.to_form() for statistic in
-                                     statistics])
+        """Return Users' statistics.
+            Args:
+            request: The USER_REQUEST objects
+            Returns:
+                StatisticForms with statistic for every user.
+        """
+        users = User.query()
+        return StatisticForms(items=[user.statistic_to_form() for user in users])
 
     @endpoints.method(request_message=USER_REQUEST,
                       response_message=RatingForm,
@@ -242,38 +304,51 @@ class tictactoegame(remote.Service):
                       name='get_user_rate',
                       http_method='GET')
     def get_user_rate(self, request):
-        """Get the users's rate"""
+        """Return a user rate.
+            Args:
+            request: The USER_REQUEST objects, which includes user_name
+            Returns:
+                RatingForm with the rating info.
+            Raises:
+                endpoints.NotFoundException: If the user does not exist.
+        """
         user = User.query(User.name == request.user_name).get()
         if not user:
             raise endpoints.NotFoundException(
                     'A User with that name does not exist!')
-        user_rate = Rating.query(Rating.user_name == request.user_name).get()
-        return RatingForm(user_name=request.user_name, rate=user_rate.rate,
-                          rank=user_rate.rank)
+        user_rate = User.query(User.name == request.user_name).get()
+        return user_rate.rate_to_form()
 
     @endpoints.method(response_message=RatingForms,
                       path='games/ranking',
                       name='get_rankings',
                       http_method='GET')
     def get_rankings(self, request):
-        """Get all users rankings"""
-        ratings = Rating.query().order(Rating.rank)
-        return RatingForms(items=[rating.to_form() for rating in ratings])
+        """Return a users' rankings.
+            Args:
+            Returns:
+                RatingForms with the rating info.
+        """
+        ratings = User.query().order(User.rank)
+        return RatingForms(items=[rating.rate_to_form() for rating in ratings])
 
     @staticmethod
     def _cache_current_leader():
         """Populates memcache with the current leader"""
-        ratings = Rating.query(Rating.rank == 1).get()
+        ratings = User.query(User.rank == 1).get()
         memcache.set(MEMCACHE_RATING, 'The leader is {} with rate={:.2f}'
                      .format(ratings.user_name, ratings.rate))
 
-    @endpoints.method(request_message=StringMessage,
-                      response_message=StringMessage,
+    @endpoints.method(response_message=StringMessage,
                       path='games/leader',
                       name='get_leader',
                       http_method='GET')
-    def get_leader(self, request):
-        """Get the leader"""
+    def get_leader(self):
+        """Return a leader.
+            Args:
+            Returns:
+                StringMessage saved in MEMCACHE_RATING.
+        """
         return StringMessage(message=memcache.get(MEMCACHE_RATING) or '')
 
 
