@@ -10,7 +10,7 @@
 later use. Each game can be retrieved or played by using the path parameter 
 `urlsafe_game_key`.
 - X-Player starts game with the `make_move` endpoint by setting 
-(i, j) - coordinates of marked space in grid.
+(row, col) - coordinates of marked space in grid.
 - O-Player continues game with the `make_move` endpoint and selects free 
 space in grid.
 - After each move the proper vertical, horizontal and diagonal lines are 
@@ -81,9 +81,9 @@ evaluated and the `make_move` reply contains message either 'Game field is ...'
  - **make_move**
     - Path: 'game'
     - Method: PUT
-    - Parameters: urlsafe_game_key, i, j
+    - Parameters: urlsafe_game_key, row, col
     - Returns: GameForm with new game status
-    - Description: Accepts i,j-indices in grid and returns the updated status 
+    - Description: Accepts row,col-indices in grid and returns the updated status 
     of the game. Controls whether the move is correct. If the game is over,
     updates history, statistic, add task to queue with info about the 
     current leader and rate

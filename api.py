@@ -171,7 +171,7 @@ class tictactoegame(remote.Service):
         """Make move.
             Args:
             request: The MAKE_MOVE_REQUEST objects, which includes
-                urlsafe_game_key, i, j - coordinates of cell the in grid,
+                urlsafe_game_key, row, col - coordinates of cell the in grid,
                 user - player who makes move.
             Returns:
                 GameForm with the current game state.
@@ -189,47 +189,48 @@ class tictactoegame(remote.Service):
 
         game_field_list = list(game.game_field)
         dim_size = int(math.sqrt(len(game_field_list)))
-        i = request.i
-        j = request.j
+        row = request.row
+        col = request.col
 
         msg = 'user is %s, and user_o is %s' % (request.user,
                                                 game.user_o.get().name)
-        if game_field_list[j + i * dim_size] != ' ':
+        if game_field_list[col + row * dim_size] != ' ':
             raise endpoints.ForbiddenException('Illegal action: '
                                                'the cell is already used.')
 
         if request.user == game.user_o.get().name:
             if game_field_list.count('x') - game_field_list.count('o') == 1:
-                game_field_list[j + i * dim_size] = 'o'
+                game_field_list[col + row * dim_size] = 'o'
                 game_field_str = ''.join(game_field_list)
                 msg = 'Game_field is %s' % (game_field_str,)
                 game.game_field = game_field_str
                 game.put()
                 game = get_by_urlsafe(request.urlsafe_game_key, Game)
                 # Check whether game is over and winner
-                if check_winner(game_field_str, 'o', i, j):
+                if check_winner(game_field_str, 'o', row, col):
                     game.end_game(game.user_o, game.user_x)
                     msg = 'Game is over! Winner-%s' % (game.user_o.get().name,)
                     # Task queue to update the leader
                     taskqueue.add(url='/tasks/_cache_current_leader')
-                history.update_history(msg, game.user_o.get().name, i, j)
+                history.update_history(msg, game.user_o.get().name, row,
+                                       col)
             else:
                 return game.to_form('It is not your turn!')
         elif request.user == game.user_x.get().name:
             if game_field_list.count('x') - game_field_list.count('o') == 0:
-                game_field_list[j + i * dim_size] = 'x'
+                game_field_list[col + row * dim_size] = 'x'
                 game_field_str = ''.join(game_field_list)
                 msg = 'Game_field is %s' % (game_field_str,)
                 game.game_field = game_field_str
                 game.put()
                 game = get_by_urlsafe(request.urlsafe_game_key, Game)
                 # Check whether game is over and winner
-                if check_winner(game_field_str, 'x', i, j):
+                if check_winner(game_field_str, 'x', row, col):
                     game.end_game(game.user_x, game.user_o)
                     msg = 'Game is over! Winner-%s' % (game.user_x.get().name,)
                     # Task queue to update the leader
                     taskqueue.add(url='/tasks/_cache_current_leader')
-                history.update_history(msg, game.user_x.get().name, i, j)
+                history.update_history(msg, game.user_x.get().name, row, col)
             else:
                 raise endpoints.ForbiddenException('Illegal action: '
                                                    'It is not your turn!')
@@ -239,7 +240,7 @@ class tictactoegame(remote.Service):
             msg = 'Game is over! Draw game!'
             # Task queue to update the leader
             taskqueue.add(url='/tasks/_cache_current_leader')
-            history.update_history(msg, '', i, j)
+            history.update_history(msg, '', row, col)
         return game.to_form(msg)
 
     @endpoints.method(request_message=USER_REQUEST,
@@ -270,33 +271,34 @@ class tictactoegame(remote.Service):
                                    Game.user_x == user.key))
         return GameForms(items=[game.to_form('') for game in games])
 
-    @endpoints.method(response_message=UserForms,
+    @endpoints.method(request_message=USER_REQUEST,
+                      response_message=UserForms,
                       path='users',
                       name='get_users',
                       http_method='GET')
-    def get_users(self):
+    def get_users(self, request):
         """Return all Users.
             Args:
             Returns:
                 UserForms with users' data.
         """
-        return UserForms(items=[user.user_to_form() for user in User.query()])
+        users = User.query()
+        return UserForms(items=[user.user_to_form() for user in users])
 
-    @endpoints.method(request_message=USER_REQUEST,
-                      response_message=StatisticForms,
+    @endpoints.method(response_message=StatisticForms,
                       path='statistic/users',
                       name='get_users_statistic',
                       http_method='GET')
-    def get_users_statistic(self):
-        """Returns all of an individual User's statistic"""
+    def get_users_statistic(self, request):
         """Return Users' statistics.
             Args:
             request: The USER_REQUEST objects
             Returns:
                 StatisticForms with statistic for every user.
         """
-        users = User.query()
-        return StatisticForms(items=[user.statistic_to_form() for user in users])
+        users = User.query().order(-User.rate)
+        return StatisticForms(items=[user.statistic_to_form()
+                                     for user in users])
 
     @endpoints.method(request_message=USER_REQUEST,
                       response_message=RatingForm,
@@ -337,13 +339,13 @@ class tictactoegame(remote.Service):
         """Populates memcache with the current leader"""
         ratings = User.query(User.rank == 1).get()
         memcache.set(MEMCACHE_RATING, 'The leader is {} with rate={:.2f}'
-                     .format(ratings.user_name, ratings.rate))
+                     .format(ratings.name, ratings.rate))
 
     @endpoints.method(response_message=StringMessage,
                       path='games/leader',
                       name='get_leader',
                       http_method='GET')
-    def get_leader(self):
+    def get_leader(self, request):
         """Return a leader.
             Args:
             Returns:
@@ -352,13 +354,13 @@ class tictactoegame(remote.Service):
         return StringMessage(message=memcache.get(MEMCACHE_RATING) or '')
 
 
-def check_winner(game_field, symbol, i, j):
+def check_winner(game_field, symbol, row, col):
     """
     Args:
         game_field: the current status of the game
         symbol: x or o - the latest move
-        i: the latest move vertical index
-        j: the latest move horizontal index
+        row: the latest move vertical index
+        col: the latest move horizontal index
     Returns: True if the game is over
     """
     dim_size = int(math.sqrt(len(game_field)))
@@ -369,19 +371,19 @@ def check_winner(game_field, symbol, i, j):
     # Check horizontal and vertical
     for index in range(dim_size):
         result_horizontal = result_horizontal and \
-                            (game_field[i * dim_size + index] == symbol)
+                            (game_field[row * dim_size + index] == symbol)
         result_vertical = result_vertical and \
-                          (game_field[index * dim_size + j] == symbol)
+                          (game_field[index * dim_size + col] == symbol)
     if result_horizontal or result_vertical:
         return True
     # Check diagonal1
-    if i == j:
+    if row == col:
         result_diagonal = True
         for index in range(dim_size):
             result_diagonal = result_diagonal and \
                               (game_field[index + index * dim_size] == symbol)
     # Check diagonal2
-    if (i + j) == dim_size - 1:
+    if (row + col) == dim_size - 1:
         result_diagonal2 = True
         for index in range(dim_size):
             result_diagonal2 = result_diagonal2 and \

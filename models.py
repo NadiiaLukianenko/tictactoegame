@@ -27,6 +27,8 @@ class User(ndb.Model):
         form.win = self.win
         form.loss = self.loss
         form.draw = self.draw
+        form.rate = self.rate
+        form.rank = self.rank
         return form
 
     def rate_to_form(self):
@@ -104,16 +106,16 @@ class History(ndb.Model):
         form.moves = str(self.moves)
         return form
 
-    def update_history(self, msg, player, i, j):
+    def update_history(self, msg, player, row, col):
         """ Updates history of the game
         Args:
             msg: game state
             player: current player
-            i, j: coordinates of cell in grid
+            row, col: coordinates of cell in grid
         Returns:
         """
         self.moves.append(
-            {'Game state': msg, 'Player': player, 'Move': '%d %d' % (i,j)})
+            {'Game state': msg, 'Player': player, 'Move': '%d %d' % (row,col)})
         self.put()
 
 
@@ -195,8 +197,8 @@ class UserForms(messages.Message):
 
 class MakeMoveForm(messages.Message):
     """Used to make a move in an existing game"""
-    i = messages.IntegerField(1, required=True)
-    j = messages.IntegerField(2, required=True)
+    row = messages.IntegerField(1, required=True)
+    col = messages.IntegerField(2, required=True)
     user = messages.StringField(3, required=True)
 
 
@@ -206,6 +208,8 @@ class StatisticForm(messages.Message):
     win = messages.IntegerField(2)
     loss = messages.IntegerField(3)
     draw = messages.IntegerField(4)
+    rate = messages.IntegerField(5)
+    rank = messages.IntegerField(6)
 
 
 class StatisticForms(messages.Message):

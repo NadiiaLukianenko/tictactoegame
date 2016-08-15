@@ -3,6 +3,10 @@ Tic-Tac-Toe game
 User model saves all data for user - name and e-mail.
 And additionally, it saves statistical data for each user and calculates
 rate and rank.
+I added win, lose and draw
+
+
+
 Rate is calculated according to the rule - 2 points for each win, 1 point
 for each draw and -1 point for each loss.
 
