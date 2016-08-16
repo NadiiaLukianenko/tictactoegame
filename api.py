@@ -178,7 +178,7 @@ class tictactoegame(remote.Service):
             Raises:
                 endpoints.ForbiddenException: If the game is already over.
                                               If the cell is already used.
-                                              If it is not turn of the user.
+                                              If it is not move of the user.
         """
         msg = 'Next move!'
         game = get_by_urlsafe(request.urlsafe_game_key, Game)
@@ -215,7 +215,7 @@ class tictactoegame(remote.Service):
                 history.update_history(msg, game.user_o.get().name, row,
                                        col)
             else:
-                return game.to_form('It is not your turn!')
+                return game.to_form('It is not your move!')
         elif request.user == game.user_x.get().name:
             if game_field_list.count('x') - game_field_list.count('o') == 0:
                 game_field_list[col + row * dim_size] = 'x'
@@ -233,7 +233,7 @@ class tictactoegame(remote.Service):
                 history.update_history(msg, game.user_x.get().name, row, col)
             else:
                 raise endpoints.ForbiddenException('Illegal action: '
-                                                   'It is not your turn!')
+                                                   'It is not your move!')
 
         if game.game_field.count(' ') == 0:
             game.end_game_draw(game.user_x, game.user_o)

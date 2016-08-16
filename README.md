@@ -148,7 +148,7 @@ evaluated and the `make_move` reply contains message either 'Game field is ...'
  - **UserForms**
     - Multiple UserForm container
  - **MakeMoveForm**
-    - Inbound make move form (i, j, user)
+    - Inbound make move form (row, col, user)
  - **StatisticForm**
     - Statistic for user (name, win, loss, draw)
  - **StatisticForms**

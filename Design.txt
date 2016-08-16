@@ -1,26 +1,62 @@
 Tic-Tac-Toe game
 
-User model saves all data for user - name and e-mail.
+ - User model saves all data for user - name and e-mail.
 And additionally, it saves statistical data for each user and calculates
 rate and rank.
-I added win, lose and draw
-
-
-
+I added win, loss and draw to User model to have possibility to calculate
+rate and rank. As well the rating for other types of rankings can be added
+based on the quantity of wins, losses and draws, e.g. all players who have not
+lost any game.
+Rate is computed property and rank is ordered accordingly to the calculated
+property.
 Rate is calculated according to the rule - 2 points for each win, 1 point
 for each draw and -1 point for each loss.
+Win, loss, draw, rate and rank are updated after the player's game is over.
 
-Game model saves game data - who play (user_o, user_x), the date of
-creation, the current state of game represented as one dimensional array.
+ - Game model saves game data - who play (user_o, user_x), the date and time of
+creation (to distinguish the games of the same players, not only by ID),
+the current state of game represented as string with symbols 'o' and 'x',
+the flag whether game is over not to recalculate each time the current state
+of the game based on the game field/grid.
+I have chosen string representation for the game field as it can be easily
+converted into one dimensional array. And the game grid - 2-dimensional array -
+can be mapped to 1-dimensional with index calculations.
+Also the string with symbols can be easily represented on UI even
+without further mapping.
 
-History model saves a history of game moves in Json format:
-{'Game state': <msg>, 'Player': <player>, 'Move': <i,j>}
+Player, who chooses 'x', starts first. This condition is validated. Two players
+in turn should make move. It is validated and the player will be informed:
+'It is not your move!'.
+After every correct move the game field is updated. And the game field is
+checked whether the game is over and who is the winner/loser or draw -
+The check_winner function validates the vertical, horizontal lines.
+And two diagonals if the latest cell is on diagonal.
+
+ - History model linked to game with moves. History model saves
+a history of game moves in Json format:
+{'Game state': <msg>, 'Player': <player>, 'Move': <row,col>}
+where msg is the current state of the game, e.g.
+player - whose move,
+row, col - indices of the cell in the grid.
+Json format is commonly used and there are a lot of standard libraries for
+converting Json into any other format or structures for further analysis,
+e.g. xml, list.
 
 UserForm, StatisticForm, RatingForm are used for data representation by
 the user_to_form, statistic_to_form, rate_to_form methods.
 
-After each move the field of game is updated and the current state of game is
-validated with check_winner - the vertical, horizontal lines are validated.
-And two diagonals if the latest cell is on diagonal.
+GameForm represents the game data.
+
+HistoryForm represents the history data.
 
 Every monday on 19:00 the letter is sent to everyone who has active game.
+
+Difficulties during implementation:
+the most difficult part was - to forget relational databases' approach and do
+not apply sql logic for requests even for simple model with three entities.
+Initially I over-engineered the solution by adding model for each entity -
+ e.g. Rating, Ranks
+
+What can be improved:
+The check_winner function is not easy to understand at a glance.
+It can be optimized with more efficient algorithm.
